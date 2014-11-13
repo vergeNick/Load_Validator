@@ -16,11 +16,8 @@ using System.Diagnostics;
  *  See Delivery Information tab for more detail.
  *  
  *  TODO:
- *      enable/disable buttons 
- *      reset validation tags for new validation session. 
+ *      add more information about failure (list column requirements) 
  *      test
- *      layout
- *      output file
  *      
  * */
 
@@ -28,29 +25,30 @@ namespace Load_Validator
 {
     class Validator
     {
-        private String required_header = "staff_id|last_name|first_name|middle_name|suffix|localid|npi|upin|ssn|" + 
-                                "gender|date_of_birth|marital_status|maiden_name|organization|department|" +
-                                "title|average_days_worked|average_hours_worked|ft_indicator|citizenship|" + 
-                                "visa_classification|visa_number|visa_issued|visa_expires|office_email|" + 
-                                "office_phone|home_address|home_address2|home_city|home_county|home_state|" + 
-                                "home_zipcode|home_email|home_phone|supervisor_local_id|delete";
-
-        private const int cols = 36;
-        public static string error_out_file;
-
-        private Criteria[] columns = new Criteria [cols + 1]; // indice == column #
+        private Criteria[] columns; // = new Criteria [cols + 1]; // indice == column #
         private Form form;
         private bool validation_completed = false;
 
+        //public static bool version_latest = true;
+        public static int cols = 35;
         public static ArrayList STAFF_IDS = new ArrayList();
         public static StreamWriter OUTPUT_WRITER;
         public static int row_counter = 0;
         public static Button validate_button;
+        public static Button open_errors;
         public static ArrayList labels_list;
+        public static CheckBox version;
+        public static string required_header = "staff_id|last_name|first_name|middle_name|suffix|npi|upin|ssn|" +
+                        "gender|date_of_birth|marital_status|maiden_name|organization|department|" +
+                        "title|average_days_worked|average_hours_worked|ft_indicator|citizenship|" +
+                        "visa_classification|visa_number|visa_issued|visa_expires|office_email|" +
+                        "office_phone|home_address|home_address2|home_city|home_county|home_state|" +
+                        "home_zipcode|home_email|home_phone|supervisor_local_id|delete";
 
         // stream reference to input data
         private Stream data;
         private Label filetarget;
+        public static string error_out_file;
 
         public static void writeError(string line, string column, string field)
         {
@@ -71,9 +69,37 @@ namespace Load_Validator
             if (validation_completed)
             {
                 form.Controls.Clear();
+                STAFF_IDS.Clear();
                 this.addControls(this);
                 validation_completed = false;
             }
+        }
+
+        private void versionChanged(object sender, System.EventArgs e)
+        {
+            if (!version.Checked)
+            {
+                Debug.WriteLine("box unchecked");
+                cols = 36;
+                required_header = "staff_id|last_name|first_name|middle_name|suffix|localid|npi|upin|ssn|" +
+                        "gender|date_of_birth|marital_status|maiden_name|organization|department|" +
+                        "title|average_days_worked|average_hours_worked|ft_indicator|citizenship|" +
+                        "visa_classification|visa_number|visa_issued|visa_expires|office_email|" +
+                        "office_phone|home_address|home_address2|home_city|home_county|home_state|" +
+                        "home_zipcode|home_email|home_phone|supervisor_local_id|delete";
+            }
+            else if (version.Checked)
+            {
+                Debug.WriteLine("box checked");
+                cols = 35;
+                required_header = "staff_id|last_name|first_name|middle_name|suffix|npi|upin|ssn|" +
+                        "gender|date_of_birth|marital_status|maiden_name|organization|department|" +
+                        "title|average_days_worked|average_hours_worked|ft_indicator|citizenship|" +
+                        "visa_classification|visa_number|visa_issued|visa_expires|office_email|" +
+                        "office_phone|home_address|home_address2|home_city|home_county|home_state|" +
+                        "home_zipcode|home_email|home_phone|supervisor_local_id|delete";
+            }
+            setCriteria(this);
         }
 
         private void openFileDialog(object sender, System.EventArgs e)
@@ -128,7 +154,7 @@ namespace Load_Validator
             row_counter += 1;
 
             // First check for perfect header match:
-            if (!this.required_header.Equals(line))
+            if (!required_header.Equals(line))
             {
                 flagLabels.header.fail();
                 writeError(line, "Header", "Header does not match the required format.");
@@ -169,17 +195,19 @@ namespace Load_Validator
 
                 for (int i = 0; i < cols; i++)
                 {
-                    //Debug.WriteLine("index: " + i + " " + this.columns[i+1].column_name.ToString() + " " + fields[i].ToString());
-                    if (fields[i] == null)
+                    try
                     {
-                        fields[i] = "";
+                        // if a field fails, write the row to error file with a message
+                        if (!this.columns[i + 1].validate(fields[i]))
+                        {
+                            writeError(line, this.columns[i + 1].column_name, fields[i]);
+                            open_errors.Enabled = true;
+                        }
                     }
-
-                    // if a field fails, write the row to error file with a message
-                   if (!this.columns[i+1].validate(fields[i]))
-                   {
-                       writeError(line, this.columns[i + 1].column_name, fields[i]);
-                   }
+                    catch (IndexOutOfRangeException)
+                    {
+                        flagLabels.field_count.fail();
+                    }
                 }
 
 
@@ -219,10 +247,11 @@ namespace Load_Validator
 
             if (errs)
             {
+                version.Visible = false;
                 Label error_message = new Label();
                 error_message.Text = "See \'" + error_out_file + "\' for error information.";
-                error_message.Location = new Point(120, 320);
-                error_message.Size = new Size(405, 100);
+                error_message.Location = new Point(10, 240);
+                error_message.Size = new Size(300, 100);
                 form.Controls.Add(error_message);
             }
         }
@@ -283,11 +312,25 @@ namespace Load_Validator
 
             v.filetarget = new Label();
             v.filetarget.Location = new Point(10, 120);
-            v.filetarget.Size = new Size(400, 40);
+            v.filetarget.Size = new Size(300, 60);
             v.filetarget.Text = "(none)";
 
+            Label filename_label = new Label();
+            filename_label.Location = new Point(10, 100);
+            filename_label.Font = new Font(filename_label.Font, FontStyle.Bold);
+            filename_label.Text = "Input File:";
+
+            version = new CheckBox();
+            version.Text = "Use Latest Format";
+            version.Visible = true;
+            version.Checked = true;
+            version.Location = new Point(20, 240);
+            version.TextAlign = ContentAlignment.MiddleLeft;
+            version.CheckedChanged += new EventHandler(v.versionChanged);
+
             // remove this when done testing. 
-            //v.filename.Text = "C:\\Users\\Nick\\Documents\\Verge_Dev\\Visual Studio Projects\\staff_import_test_2.txt";
+            //v.filetarget.Text = "C:\\Users\\Nick\\Documents\\Verge_Dev\\Visual Studio Projects\\Load_Validator\\Load_Validator\\bin\\Debug\\staff_import_fail_test.txt";
+            //error_out_file = "C:\\Users\\Nick\\Documents\\Verge_Dev\\Visual Studio Projects\\Load_Validator\\Load_Validator\\bin\\Debug\\staff_import_fail_test_error_out.txt";
 
             PictureBox logo = new PictureBox();
             logo.Image = Load_Validator.Properties.Resources.vergesolutions;
@@ -296,16 +339,23 @@ namespace Load_Validator
 
             Button pick_file_button = new Button();
             pick_file_button.Text = "Select Data File";
-            pick_file_button.Size = new Size(100, 50);
-            pick_file_button.Location = new Point(30, 165);
+            pick_file_button.Size = new Size(80, 50);
+            pick_file_button.Location = new Point(20, 185);
             pick_file_button.Click += new EventHandler(v.openFileDialog);
 
             validate_button = new Button();
-            validate_button.Text = "Validate Input File";
-            validate_button.Location = new Point(135, 165);
-            validate_button.Size = new Size(100, 50);
+            validate_button.Text = "Validate Data File";
+            validate_button.Size = new Size(80, 50);
+            validate_button.Location = new Point(105, 185);
             validate_button.Click += new EventHandler(v.validate);
             validate_button.Enabled = false;
+
+            open_errors = new Button();
+            open_errors.Text = "Open Error File";
+            open_errors.Size = new Size(80, 50);
+            open_errors.Location = new Point(190, 185);
+            open_errors.Click += new EventHandler(v.openErrorFile);
+            open_errors.Enabled = false;
 
             Button quit_button = new Button();
             quit_button.Text = "Quit";
@@ -313,67 +363,114 @@ namespace Load_Validator
             quit_button.Location = new Point(10, 305);
             quit_button.Click += new EventHandler(v.appQuit);
 
-            Label filename_label = new Label();
-            filename_label.Location = new Point(10, 100);
-            filename_label.Font = new Font(filename_label.Font, FontStyle.Bold);
-            filename_label.Text = "Input File:";
-
+            v.form.Controls.Add(version);
             v.form.Controls.Add(pick_file_button);
             v.form.Controls.Add(v.filetarget);
             v.form.Controls.Add(filename_label);
             v.form.Controls.Add(validate_button);
             v.form.Controls.Add(quit_button);
             v.form.Controls.Add(logo);
+            v.form.Controls.Add(open_errors);
         }
 
         static void setCriteria(Validator v)
         {
+            v.columns = new Criteria[cols + 1]; // indice == column #
+
             string [] suffix = new string [7] {"Sr.", "Jr.", "II", "III", "IV", "V", ""};
             string [] gender = new string [3] {"M", "F", ""};
             string [] marital_status = new string [3] {"Married", "Not Married", ""};
             string [] bit = new string [3] {"0", "1", ""};
 
             /*
+             * Criteria constructor:
+             * 
             *   public Criteria(int column, string column_name, int len, 
                 bool required, bool isDate, bool isDec, string [] accepted)
              * */
 
-            v.columns[1] = new Criteria(1, "staff_id", 50, true, false, false, null);
-            v.columns[2] = new Criteria(2, "last_name", 50, true, false, false, null);
-            v.columns[3] = new Criteria(3, "first_name", 50, true, false, false, null);
-            v.columns[4] = new Criteria(4, "middle_name", 50, false, false, false, null);
-            v.columns[5] = new Criteria(5, "suffix", 3, false, false, false, suffix);
-            v.columns[6] = new Criteria(6, "localid", 50, false, false, false, null);
-            v.columns[7] = new Criteria(7, "npi", 50, false, false, false, null);
-            v.columns[8] = new Criteria(8, "upin", 50, false, false, false, null);
-            v.columns[9] = new Criteria(9, "ssn", 50, false, false, false, null);
-            v.columns[10] = new Criteria(10, "gender", 1, false, false, false, gender);
-            v.columns[11] = new Criteria(11, "date_of_birth", 0, false, true, false, null);
-            v.columns[12] = new Criteria(12, "marital_status", 20, false, false, false, marital_status);
-            v.columns[13] = new Criteria(13, "maiden_name", 50, false, false, false, null);
-            v.columns[14] = new Criteria(14, "organization", 200, true, false, false, null);
-            v.columns[15] = new Criteria(15, "department", 100, false, false, false, null);
-            v.columns[16] = new Criteria(16, "title", 100, false, false, false, null);
-            v.columns[17] = new Criteria(17, "average_days_worked", 0, false, false, true, null);
-            v.columns[18] = new Criteria(18, "average_hours_worked", 0, false, false, true, null);
-            v.columns[19] = new Criteria(19, "ft_indicator", 1, false, false, false, bit);
-            v.columns[20] = new Criteria(20, "citizenship", 50, false, false, false, null);
-            v.columns[21] = new Criteria(21, "visa_classification", 50, false, false, false, null);
-            v.columns[22] = new Criteria(22, "visa_number", 50, false, false, false, null);
-            v.columns[23] = new Criteria(23, "visa_issued", 0, false, true, false, null);
-            v.columns[24] = new Criteria(24, "visa_expires", 0, false, true, false, null);
-            v.columns[25] = new Criteria(25, "office_email", 100, false, false, false, null);
-            v.columns[26] = new Criteria(26, "office_phone", 50, false, false, false, null);
-            v.columns[27] = new Criteria(27, "home_address", 200, false, false, false, null);
-            v.columns[28] = new Criteria(28, "home_address2", 200, false, false, false, null);
-            v.columns[29] = new Criteria(29, "home_city", 100, false, false, false, null);
-            v.columns[30] = new Criteria(30, "home_county", 100, false, false, false, null);
-            v.columns[31] = new Criteria(31, "home_state", 100, false, false, false, null);
-            v.columns[32] = new Criteria(32, "home_zipcode", 50, false, false, false, null);
-            v.columns[33] = new Criteria(33, "home_email", 100, false, false, false, null);
-            v.columns[34] = new Criteria(34, "home_phone", 20, false, false, false, null);
-            v.columns[35] = new Criteria(35, "supervisor_local_id", 50, false, false, false, null);
-            v.columns[36] = new Criteria(36, "delete", 1, false, false, false, bit);
+            if (version.Checked) // format/header does not include localid
+            {
+                v.columns[1] = new Criteria(1, "staff_id", 50, true, false, false, null);
+                v.columns[2] = new Criteria(2, "last_name", 50, true, false, false, null);
+                v.columns[3] = new Criteria(3, "first_name", 50, true, false, false, null);
+                v.columns[4] = new Criteria(4, "middle_name", 50, false, false, false, null);
+                v.columns[5] = new Criteria(5, "suffix", 3, false, false, false, suffix);
+                v.columns[6] = new Criteria(6, "npi", 50, false, false, false, null);
+                v.columns[7] = new Criteria(7, "upin", 50, false, false, false, null);
+                v.columns[8] = new Criteria(8, "ssn", 50, false, false, false, null);
+                v.columns[9] = new Criteria(9, "gender", 1, false, false, false, gender);
+                v.columns[10] = new Criteria(10, "date_of_birth", 0, false, true, false, null);
+                v.columns[11] = new Criteria(11, "marital_status", 20, false, false, false, marital_status);
+                v.columns[12] = new Criteria(12, "maiden_name", 50, false, false, false, null);
+                v.columns[13] = new Criteria(13, "organization", 200, true, false, false, null);
+                v.columns[14] = new Criteria(14, "department", 100, false, false, false, null);
+                v.columns[15] = new Criteria(15, "title", 100, false, false, false, null);
+                v.columns[16] = new Criteria(16, "average_days_worked", 0, false, false, true, null);
+                v.columns[17] = new Criteria(17, "average_hours_worked", 0, false, false, true, null);
+                v.columns[18] = new Criteria(18, "ft_indicator", 1, false, false, false, bit);
+                v.columns[19] = new Criteria(19, "citizenship", 50, false, false, false, null);
+                v.columns[20] = new Criteria(20, "visa_classification", 50, false, false, false, null);
+                v.columns[21] = new Criteria(21, "visa_number", 50, false, false, false, null);
+                v.columns[22] = new Criteria(22, "visa_issued", 0, false, true, false, null);
+                v.columns[23] = new Criteria(23, "visa_expires", 0, false, true, false, null);
+                v.columns[24] = new Criteria(24, "office_email", 100, false, false, false, null);
+                v.columns[25] = new Criteria(25, "office_phone", 50, false, false, false, null);
+                v.columns[26] = new Criteria(26, "home_address", 200, false, false, false, null);
+                v.columns[27] = new Criteria(27, "home_address2", 200, false, false, false, null);
+                v.columns[28] = new Criteria(28, "home_city", 100, false, false, false, null);
+                v.columns[29] = new Criteria(29, "home_country", 100, false, false, false, null);
+                v.columns[30] = new Criteria(30, "home_state", 100, false, false, false, null);
+                v.columns[31] = new Criteria(31, "home_zipcode", 50, false, false, false, null);
+                v.columns[32] = new Criteria(32, "home_email", 100, false, false, false, null);
+                v.columns[33] = new Criteria(33, "home_phone", 20, false, false, false, null);
+                v.columns[34] = new Criteria(34, "supervisor_local_id", 50, false, false, false, null);
+                v.columns[35] = new Criteria(35, "delete", 1, false, false, false, bit);
+            }
+            else // older version which includes localid
+            {
+                v.columns[1] = new Criteria(1, "staff_id", 50, true, false, false, null);
+                v.columns[2] = new Criteria(2, "last_name", 50, true, false, false, null);
+                v.columns[3] = new Criteria(3, "first_name", 50, true, false, false, null);
+                v.columns[4] = new Criteria(4, "middle_name", 50, false, false, false, null);
+                v.columns[5] = new Criteria(5, "suffix", 3, false, false, false, suffix);
+                v.columns[6] = new Criteria(6, "localid", 50, false, false, false, null);
+                v.columns[7] = new Criteria(7, "npi", 50, false, false, false, null);
+                v.columns[8] = new Criteria(8, "upin", 50, false, false, false, null);
+                v.columns[9] = new Criteria(9, "ssn", 50, false, false, false, null);
+                v.columns[10] = new Criteria(10, "gender", 1, false, false, false, gender);
+                v.columns[11] = new Criteria(11, "date_of_birth", 0, false, true, false, null);
+                v.columns[12] = new Criteria(12, "marital_status", 20, false, false, false, marital_status);
+                v.columns[13] = new Criteria(13, "maiden_name", 50, false, false, false, null);
+                v.columns[14] = new Criteria(14, "organization", 200, true, false, false, null);
+                v.columns[15] = new Criteria(15, "department", 100, false, false, false, null);
+                v.columns[16] = new Criteria(16, "title", 100, false, false, false, null);
+                v.columns[17] = new Criteria(17, "average_days_worked", 0, false, false, true, null);
+                v.columns[18] = new Criteria(18, "average_hours_worked", 0, false, false, true, null);
+                v.columns[19] = new Criteria(19, "ft_indicator", 1, false, false, false, bit);
+                v.columns[20] = new Criteria(20, "citizenship", 50, false, false, false, null);
+                v.columns[21] = new Criteria(21, "visa_classification", 50, false, false, false, null);
+                v.columns[22] = new Criteria(22, "visa_number", 50, false, false, false, null);
+                v.columns[23] = new Criteria(23, "visa_issued", 0, false, true, false, null);
+                v.columns[24] = new Criteria(24, "visa_expires", 0, false, true, false, null);
+                v.columns[25] = new Criteria(25, "office_email", 100, false, false, false, null);
+                v.columns[26] = new Criteria(26, "office_phone", 50, false, false, false, null);
+                v.columns[27] = new Criteria(27, "home_address", 200, false, false, false, null);
+                v.columns[28] = new Criteria(28, "home_address2", 200, false, false, false, null);
+                v.columns[29] = new Criteria(29, "home_city", 100, false, false, false, null);
+                v.columns[30] = new Criteria(30, "home_country", 100, false, false, false, null);
+                v.columns[31] = new Criteria(31, "home_state", 100, false, false, false, null);
+                v.columns[32] = new Criteria(32, "home_zipcode", 50, false, false, false, null);
+                v.columns[33] = new Criteria(33, "home_email", 100, false, false, false, null);
+                v.columns[34] = new Criteria(34, "home_phone", 20, false, false, false, null);
+                v.columns[35] = new Criteria(35, "supervisor_local_id", 50, false, false, false, null);
+                v.columns[36] = new Criteria(36, "delete", 1, false, false, false, bit);
+            }
+        }
+
+        private void openErrorFile(object sender, System.EventArgs e)
+        {
+            Process.Start("notepad.exe", error_out_file);
         }
 
         private void appQuit(object sender, System.EventArgs e)
