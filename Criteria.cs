@@ -114,9 +114,15 @@ namespace Load_Validator
                 len = "";
             }
 
+            /*
             string req = (this.required == true) ? "  (This field is required.)" : "";
             string date = (this.isDate == true) ? "  (This field must be a valid date : YYYY-MM-DD.)" : "";
             string dec = (this.isDec == true) ? "  (This field must be a valid decimal : \'12,4 DEC\'.)" : "";
+            */
+
+            string req = (this.required) ? "  (This field is required.)" : "";
+            string date = (this.isDate) ? "  (This field must be a valid date : YYYY-MM-DD.)" : "";
+            string dec = (this.isDec) ? "  (This field must be a valid decimal : \'12,4 DEC\'.)" : "";
 
             string accepted;
             if (this.accepted != null)
