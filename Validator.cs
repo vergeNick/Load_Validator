@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
+using System.Data.Linq;
+using System.Linq;
 using System.Drawing;
 using System.Windows.Forms;
 using System.IO;
@@ -37,7 +38,9 @@ namespace Load_Validator
         public static Button validate_button;
         public static Button open_errors;
         public static ArrayList labels_list;
-        public static CheckBox version;
+        public static CheckBox version; // updated to be a drop down list
+        public static string[] versions = new string[] { "0.7", "0.6" }; // our set of versions. 
+        public static ComboBox version_;
         public static string required_header = "staff_id|last_name|first_name|middle_name|suffix|npi|upin|ssn|" +
                         "gender|date_of_birth|marital_status|maiden_name|organization|department|" +
                         "title|average_days_worked|average_hours_worked|ft_indicator|citizenship|" +
@@ -59,8 +62,27 @@ namespace Load_Validator
                                 "\' has invalid value: \'" + field + "\'";
                                 
                 OUTPUT_WRITER.WriteLine(text);
+                OUTPUT_WRITER.WriteLine();
                 OUTPUT_WRITER.WriteLine("Full row data: " + line);
-                OUTPUT_WRITER.WriteLine("-----------------------------------------------------");
+                OUTPUT_WRITER.WriteLine("--------------------------------------------------------------------------------------------------");
+            }
+        }
+
+        // overload error message to include spec.
+        public static void writeError(string line, string column, string field, string spec)
+        {
+            using (OUTPUT_WRITER = File.AppendText(error_out_file))
+            {
+                string text = "Error in line " + row_counter + " of input file. " +
+                                " Column \'" + column +
+                                "\' has invalid value: \'" + field + "\'";
+
+                OUTPUT_WRITER.WriteLine(text);
+                OUTPUT_WRITER.WriteLine();
+                OUTPUT_WRITER.WriteLine(spec);
+                OUTPUT_WRITER.WriteLine();
+                OUTPUT_WRITER.WriteLine("Full row data: " + line);
+                OUTPUT_WRITER.WriteLine("--------------------------------------------------------------------------------------------------");
             }
         }
 
@@ -68,6 +90,7 @@ namespace Load_Validator
         {
             if (validation_completed)
             {
+                row_counter = 0;
                 form.Controls.Clear();
                 STAFF_IDS.Clear();
                 this.addControls(this);
@@ -77,7 +100,7 @@ namespace Load_Validator
 
         private void versionChanged(object sender, System.EventArgs e)
         {
-            if (!version.Checked)
+            if (version_.SelectedValue == "0.6") // version 0.6
             {
                 Debug.WriteLine("box unchecked");
                 cols = 36;
@@ -88,7 +111,7 @@ namespace Load_Validator
                         "office_phone|home_address|home_address2|home_city|home_county|home_state|" +
                         "home_zipcode|home_email|home_phone|supervisor_local_id|delete";
             }
-            else if (version.Checked)
+            else if (version_.SelectedValue == "0.7") // version 0.7
             {
                 Debug.WriteLine("box checked");
                 cols = 35;
@@ -158,6 +181,7 @@ namespace Load_Validator
             {
                 flagLabels.header.fail();
                 writeError(line, "Header", "Header does not match the required format.");
+                open_errors.Enabled = true;
             }
 
             // Check for CRLF before moving to next line.
@@ -171,6 +195,7 @@ namespace Load_Validator
             {
                 flagLabels.newlines.fail();
                 writeError(line, "End of Line", "Line did not terminate with CRLF.");
+                open_errors.Enabled = true;
             }
 
             // Now start loop for normal rows
@@ -190,6 +215,7 @@ namespace Load_Validator
                 {
                     flagLabels.staff_ids.fail();
                     writeError(line, "Unique Staff Id", "The staff id is not unique.");
+                    open_errors.Enabled = true;
                 }
                 STAFF_IDS.Add(fields[0]);
 
@@ -200,7 +226,7 @@ namespace Load_Validator
                         // if a field fails, write the row to error file with a message
                         if (!this.columns[i + 1].validate(fields[i]))
                         {
-                            writeError(line, this.columns[i + 1].column_name, fields[i]);
+                            writeError(line, this.columns[i + 1].column_name, fields[i], this.columns[i + 1].spec());
                             open_errors.Enabled = true;
                         }
                     }
@@ -230,6 +256,11 @@ namespace Load_Validator
         public void setFlags()
         {
             bool errs = false;
+            Label error_message = new Label();
+            error_message.Location = new Point(10, 240);
+            error_message.Size = new Size(300, 100);
+            form.Controls.Add(error_message);
+
             foreach(flagLabel label in labels_list)
             {
                 if (!label.valid)
@@ -247,12 +278,13 @@ namespace Load_Validator
 
             if (errs)
             {
-                version.Visible = false;
-                Label error_message = new Label();
+                version_.Visible = false;
                 error_message.Text = "See \'" + error_out_file + "\' for error information.";
-                error_message.Location = new Point(10, 240);
-                error_message.Size = new Size(300, 100);
-                form.Controls.Add(error_message);
+            }
+            else
+            {
+                error_message.Text = "Data file has no errors!";
+                version_.Visible = false;
             }
         }
 
@@ -320,6 +352,7 @@ namespace Load_Validator
             filename_label.Font = new Font(filename_label.Font, FontStyle.Bold);
             filename_label.Text = "Input File:";
 
+            /*
             version = new CheckBox();
             version.Text = "Use Latest Format";
             version.Visible = true;
@@ -327,6 +360,17 @@ namespace Load_Validator
             version.Location = new Point(20, 240);
             version.TextAlign = ContentAlignment.MiddleLeft;
             version.CheckedChanged += new EventHandler(v.versionChanged);
+             * */
+
+            version_ = new System.Windows.Forms.ComboBox();
+            version_.DropDownStyle = ComboBoxStyle.DropDownList;
+            version_.Location = new Point(20, 240);
+            version_.Size = new Size(100, 30);
+            version_.DataSource = versions;
+            version_.SelectedIndexChanged += new System.EventHandler(versionChanged);
+            //version_.SelectedValue = versions[0];
+            version_.SelectionStart = 0;
+
 
             // remove this when done testing. 
             //v.filetarget.Text = "C:\\Users\\Nick\\Documents\\Verge_Dev\\Visual Studio Projects\\Load_Validator\\Load_Validator\\bin\\Debug\\staff_import_fail_test.txt";
@@ -363,7 +407,8 @@ namespace Load_Validator
             quit_button.Location = new Point(10, 305);
             quit_button.Click += new EventHandler(v.appQuit);
 
-            v.form.Controls.Add(version);
+            //v.form.Controls.Add(version);
+            v.form.Controls.Add(version_);
             v.form.Controls.Add(pick_file_button);
             v.form.Controls.Add(v.filetarget);
             v.form.Controls.Add(filename_label);
@@ -388,8 +433,7 @@ namespace Load_Validator
             *   public Criteria(int column, string column_name, int len, 
                 bool required, bool isDate, bool isDec, string [] accepted)
              * */
-
-            if (version.Checked) // format/header does not include localid
+            if (version_.SelectedValue == "0.7") // format/header does not include localid
             {
                 v.columns[1] = new Criteria(1, "staff_id", 50, true, false, false, null);
                 v.columns[2] = new Criteria(2, "last_name", 50, true, false, false, null);
@@ -427,7 +471,7 @@ namespace Load_Validator
                 v.columns[34] = new Criteria(34, "supervisor_local_id", 50, false, false, false, null);
                 v.columns[35] = new Criteria(35, "delete", 1, false, false, false, bit);
             }
-            else // older version which includes localid
+            else if(version_.SelectedValue == "0.6") // older version which includes localid
             {
                 v.columns[1] = new Criteria(1, "staff_id", 50, true, false, false, null);
                 v.columns[2] = new Criteria(2, "last_name", 50, true, false, false, null);
@@ -518,8 +562,4 @@ namespace Load_Validator
         }
     }
 
-    public class ValidatorFailed
-    {
-        public string text;
-    }
 }

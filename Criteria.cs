@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Linq;
+using System.Threading;
 using System.Diagnostics;
 
 namespace Load_Validator
@@ -34,8 +34,8 @@ namespace Load_Validator
          * */
         public bool validate(string input)
         {
-            // first check if required field and is blank
-            if (required & input.Length == 0)
+            // first check if required field and is blank - trim off whitespace. 
+            if (required & input.Trim().Length == 0)
             {
                 flagLabels.required_field.fail();
                 return false;
@@ -99,6 +99,49 @@ namespace Load_Validator
             }
 
             return true;
+        }
+
+        public string spec()
+        {
+            string len;
+
+            if (this.len > 0)
+            {
+                len = "  (Length must be <= " + this.len.ToString() + " characters.)";
+            }
+            else
+            {
+                len = "";
+            }
+
+            string req = (this.required == true) ? "  (This field is required.)" : "";
+            string date = (this.isDate == true) ? "  (This field must be a valid date : YYYY-MM-DD.)" : "";
+            string dec = (this.isDec == true) ? "  (This field must be a valid decimal : \'12,4 DEC\'.)" : "";
+
+            string accepted;
+            if (this.accepted != null)
+            {
+                accepted = (this.accepted.Length > 0) ? "  (Value must be in: " + string.Join(",", getAcceptedValues()) + ")" : "";
+            }
+            else
+            {
+                accepted = "";
+            }
+            string s = "Field Requirments:" + req + len + date + dec + accepted;
+
+            return s;
+        }
+
+        private List<string> getAcceptedValues()
+        {
+            List<string> list = new List<string>();
+
+            foreach (string s in this.accepted)
+            {
+                list.Add(s);
+            }
+
+            return list;
         }
     }
 }
