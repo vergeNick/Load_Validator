@@ -17,8 +17,9 @@ using System.Diagnostics;
  *  See Delivery Information tab for more detail.
  *  
  *  TODO:
- *      add more information about failure (list column requirements) 
- *      test
+ *      12/2 - Add option to choose different table
+ *      12/2 - Columns array changes with chosen table (Demographic, EmployeeJobDetail, LicenseCertification)
+ *      test...
  *      
  * */
 
@@ -26,11 +27,12 @@ namespace Load_Validator
 {
     class Validator
     {
-        private Criteria[] columns; // = new Criteria [cols + 1]; // indice == column #
+        // this array redefines as user chooses different tables (Demographic, EmployeeJobDetail, LicenseCertification)
+        private Criteria[] COLUMNS; // = new Criteria [cols + 1]; // indice == column #
+
         private Form form;
         private bool validation_completed = false;
 
-        //public static bool version_latest = true;
         public static int cols = 35;
         public static ArrayList STAFF_IDS = new ArrayList();
         public static StreamWriter OUTPUT_WRITER;
@@ -38,9 +40,9 @@ namespace Load_Validator
         public static Button validate_button;
         public static Button open_errors;
         public static ArrayList labels_list;
-        public static CheckBox version; // updated to be a drop down list
         public static string[] versions = new string[] { "0.7", "0.6" }; // our set of versions. 
         public static ComboBox version_;
+        public static Label version_label;
         public static string required_header = "staff_id|last_name|first_name|middle_name|suffix|npi|upin|ssn|" +
                         "gender|date_of_birth|marital_status|maiden_name|organization|department|" +
                         "title|average_days_worked|average_hours_worked|ft_indicator|citizenship|" +
@@ -224,9 +226,9 @@ namespace Load_Validator
                     try
                     {
                         // if a field fails, write the row to error file with a message
-                        if (!this.columns[i + 1].validate(fields[i]))
+                        if (!this.COLUMNS[i + 1].validate(fields[i]))
                         {
-                            writeError(line, this.columns[i + 1].column_name, fields[i], this.columns[i + 1].spec());
+                            writeError(line, this.COLUMNS[i + 1].column_name, fields[i], this.COLUMNS[i + 1].spec());
                             open_errors.Enabled = true;
                         }
                     }
@@ -236,8 +238,6 @@ namespace Load_Validator
                     }
                 }
 
-
-                // TODO: check CRLF at end of each line (see code above)
                 for (int i = 1; i <= line.Length; i++)
                 {
                     endline_reader.Read();
@@ -279,12 +279,14 @@ namespace Load_Validator
             if (errs)
             {
                 version_.Visible = false;
+                version_label.Visible = false;
                 error_message.Text = "See \'" + error_out_file + "\' for error information.";
             }
             else
             {
                 error_message.Text = "Data file has no errors!";
                 version_.Visible = false;
+                version_label.Visible = false;
             }
         }
 
@@ -295,6 +297,7 @@ namespace Load_Validator
             v.form = new Form();
             v.form.Size = new Size(600, 400);
             v.form.Text = "Load File Validator";
+            v.form.Icon = new Icon("verge_icon.ico");
 
             v.addControls(v);
             setCriteria(v);
@@ -352,20 +355,17 @@ namespace Load_Validator
             filename_label.Font = new Font(filename_label.Font, FontStyle.Bold);
             filename_label.Text = "Input File:";
 
-            /*
-            version = new CheckBox();
-            version.Text = "Use Latest Format";
-            version.Visible = true;
-            version.Checked = true;
-            version.Location = new Point(20, 240);
-            version.TextAlign = ContentAlignment.MiddleLeft;
-            version.CheckedChanged += new EventHandler(v.versionChanged);
-             * */
+            version_label = new Label();
+            version_label.Location = new Point(20, 242);
+            version_label.Size = new Size(100, 15);
+            version_label.Font = new Font(version_label.Font, FontStyle.Bold);
+            version_label.TextAlign = ContentAlignment.MiddleLeft;
+            version_label.Text = "Header Version: ";
 
-            version_ = new System.Windows.Forms.ComboBox();
+            version_ = new ComboBox();
             version_.DropDownStyle = ComboBoxStyle.DropDownList;
-            version_.Location = new Point(20, 240);
-            version_.Size = new Size(100, 30);
+            version_.Location = new Point(120, 240);
+            version_.Size = new Size(150, 30);
             version_.DataSource = versions;
             version_.SelectedIndexChanged += new System.EventHandler(versionChanged);
             //version_.SelectedValue = versions[0];
@@ -407,7 +407,7 @@ namespace Load_Validator
             quit_button.Location = new Point(10, 305);
             quit_button.Click += new EventHandler(v.appQuit);
 
-            //v.form.Controls.Add(version);
+            v.form.Controls.Add(version_label);
             v.form.Controls.Add(version_);
             v.form.Controls.Add(pick_file_button);
             v.form.Controls.Add(v.filetarget);
@@ -420,7 +420,7 @@ namespace Load_Validator
 
         static void setCriteria(Validator v)
         {
-            v.columns = new Criteria[cols + 1]; // indice == column #
+            v.COLUMNS = new Criteria[cols + 1]; // indice == column #
 
             string [] suffix = new string [7] {"Sr.", "Jr.", "II", "III", "IV", "V", ""};
             string [] gender = new string [3] {"M", "F", ""};
@@ -433,82 +433,82 @@ namespace Load_Validator
             *   public Criteria(int column, string column_name, int len, 
                 bool required, bool isDate, bool isDec, string [] accepted)
              * */
-            if (version_.SelectedValue == "0.7") // format/header does not include localid
+            if ((string)version_.SelectedValue == "0.7") // format/header does not include localid
             {
-                v.columns[1] = new Criteria(1, "staff_id", 50, true, false, false, null);
-                v.columns[2] = new Criteria(2, "last_name", 50, true, false, false, null);
-                v.columns[3] = new Criteria(3, "first_name", 50, true, false, false, null);
-                v.columns[4] = new Criteria(4, "middle_name", 50, false, false, false, null);
-                v.columns[5] = new Criteria(5, "suffix", 3, false, false, false, suffix);
-                v.columns[6] = new Criteria(6, "npi", 50, false, false, false, null);
-                v.columns[7] = new Criteria(7, "upin", 50, false, false, false, null);
-                v.columns[8] = new Criteria(8, "ssn", 50, false, false, false, null);
-                v.columns[9] = new Criteria(9, "gender", 1, false, false, false, gender);
-                v.columns[10] = new Criteria(10, "date_of_birth", 0, false, true, false, null);
-                v.columns[11] = new Criteria(11, "marital_status", 20, false, false, false, marital_status);
-                v.columns[12] = new Criteria(12, "maiden_name", 50, false, false, false, null);
-                v.columns[13] = new Criteria(13, "organization", 200, true, false, false, null);
-                v.columns[14] = new Criteria(14, "department", 100, false, false, false, null);
-                v.columns[15] = new Criteria(15, "title", 100, false, false, false, null);
-                v.columns[16] = new Criteria(16, "average_days_worked", 0, false, false, true, null);
-                v.columns[17] = new Criteria(17, "average_hours_worked", 0, false, false, true, null);
-                v.columns[18] = new Criteria(18, "ft_indicator", 1, false, false, false, bit);
-                v.columns[19] = new Criteria(19, "citizenship", 50, false, false, false, null);
-                v.columns[20] = new Criteria(20, "visa_classification", 50, false, false, false, null);
-                v.columns[21] = new Criteria(21, "visa_number", 50, false, false, false, null);
-                v.columns[22] = new Criteria(22, "visa_issued", 0, false, true, false, null);
-                v.columns[23] = new Criteria(23, "visa_expires", 0, false, true, false, null);
-                v.columns[24] = new Criteria(24, "office_email", 100, false, false, false, null);
-                v.columns[25] = new Criteria(25, "office_phone", 50, false, false, false, null);
-                v.columns[26] = new Criteria(26, "home_address", 200, false, false, false, null);
-                v.columns[27] = new Criteria(27, "home_address2", 200, false, false, false, null);
-                v.columns[28] = new Criteria(28, "home_city", 100, false, false, false, null);
-                v.columns[29] = new Criteria(29, "home_country", 100, false, false, false, null);
-                v.columns[30] = new Criteria(30, "home_state", 100, false, false, false, null);
-                v.columns[31] = new Criteria(31, "home_zipcode", 50, false, false, false, null);
-                v.columns[32] = new Criteria(32, "home_email", 100, false, false, false, null);
-                v.columns[33] = new Criteria(33, "home_phone", 20, false, false, false, null);
-                v.columns[34] = new Criteria(34, "supervisor_local_id", 50, false, false, false, null);
-                v.columns[35] = new Criteria(35, "delete", 1, false, false, false, bit);
+                v.COLUMNS[1] = new Criteria(1, "staff_id", 50, true, false, false, null);
+                v.COLUMNS[2] = new Criteria(2, "last_name", 50, true, false, false, null);
+                v.COLUMNS[3] = new Criteria(3, "first_name", 50, true, false, false, null);
+                v.COLUMNS[4] = new Criteria(4, "middle_name", 50, false, false, false, null);
+                v.COLUMNS[5] = new Criteria(5, "suffix", 3, false, false, false, suffix);
+                v.COLUMNS[6] = new Criteria(6, "npi", 50, false, false, false, null);
+                v.COLUMNS[7] = new Criteria(7, "upin", 50, false, false, false, null);
+                v.COLUMNS[8] = new Criteria(8, "ssn", 50, false, false, false, null);
+                v.COLUMNS[9] = new Criteria(9, "gender", 1, false, false, false, gender);
+                v.COLUMNS[10] = new Criteria(10, "date_of_birth", 0, false, true, false, null);
+                v.COLUMNS[11] = new Criteria(11, "marital_status", 20, false, false, false, marital_status);
+                v.COLUMNS[12] = new Criteria(12, "maiden_name", 50, false, false, false, null);
+                v.COLUMNS[13] = new Criteria(13, "organization", 200, true, false, false, null);
+                v.COLUMNS[14] = new Criteria(14, "department", 100, false, false, false, null);
+                v.COLUMNS[15] = new Criteria(15, "title", 100, false, false, false, null);
+                v.COLUMNS[16] = new Criteria(16, "average_days_worked", 0, false, false, true, null);
+                v.COLUMNS[17] = new Criteria(17, "average_hours_worked", 0, false, false, true, null);
+                v.COLUMNS[18] = new Criteria(18, "ft_indicator", 1, false, false, false, bit);
+                v.COLUMNS[19] = new Criteria(19, "citizenship", 50, false, false, false, null);
+                v.COLUMNS[20] = new Criteria(20, "visa_classification", 50, false, false, false, null);
+                v.COLUMNS[21] = new Criteria(21, "visa_number", 50, false, false, false, null);
+                v.COLUMNS[22] = new Criteria(22, "visa_issued", 0, false, true, false, null);
+                v.COLUMNS[23] = new Criteria(23, "visa_expires", 0, false, true, false, null);
+                v.COLUMNS[24] = new Criteria(24, "office_email", 100, false, false, false, null);
+                v.COLUMNS[25] = new Criteria(25, "office_phone", 50, false, false, false, null);
+                v.COLUMNS[26] = new Criteria(26, "home_address", 200, false, false, false, null);
+                v.COLUMNS[27] = new Criteria(27, "home_address2", 200, false, false, false, null);
+                v.COLUMNS[28] = new Criteria(28, "home_city", 100, false, false, false, null);
+                v.COLUMNS[29] = new Criteria(29, "home_country", 100, false, false, false, null);
+                v.COLUMNS[30] = new Criteria(30, "home_state", 100, false, false, false, null);
+                v.COLUMNS[31] = new Criteria(31, "home_zipcode", 50, false, false, false, null);
+                v.COLUMNS[32] = new Criteria(32, "home_email", 100, false, false, false, null);
+                v.COLUMNS[33] = new Criteria(33, "home_phone", 20, false, false, false, null);
+                v.COLUMNS[34] = new Criteria(34, "supervisor_local_id", 50, false, false, false, null);
+                v.COLUMNS[35] = new Criteria(35, "delete", 1, false, false, false, bit);
             }
-            else if(version_.SelectedValue == "0.6") // older version which includes localid
+            else if((string)version_.SelectedValue == "0.6") // older version which includes localid
             {
-                v.columns[1] = new Criteria(1, "staff_id", 50, true, false, false, null);
-                v.columns[2] = new Criteria(2, "last_name", 50, true, false, false, null);
-                v.columns[3] = new Criteria(3, "first_name", 50, true, false, false, null);
-                v.columns[4] = new Criteria(4, "middle_name", 50, false, false, false, null);
-                v.columns[5] = new Criteria(5, "suffix", 3, false, false, false, suffix);
-                v.columns[6] = new Criteria(6, "localid", 50, false, false, false, null);
-                v.columns[7] = new Criteria(7, "npi", 50, false, false, false, null);
-                v.columns[8] = new Criteria(8, "upin", 50, false, false, false, null);
-                v.columns[9] = new Criteria(9, "ssn", 50, false, false, false, null);
-                v.columns[10] = new Criteria(10, "gender", 1, false, false, false, gender);
-                v.columns[11] = new Criteria(11, "date_of_birth", 0, false, true, false, null);
-                v.columns[12] = new Criteria(12, "marital_status", 20, false, false, false, marital_status);
-                v.columns[13] = new Criteria(13, "maiden_name", 50, false, false, false, null);
-                v.columns[14] = new Criteria(14, "organization", 200, true, false, false, null);
-                v.columns[15] = new Criteria(15, "department", 100, false, false, false, null);
-                v.columns[16] = new Criteria(16, "title", 100, false, false, false, null);
-                v.columns[17] = new Criteria(17, "average_days_worked", 0, false, false, true, null);
-                v.columns[18] = new Criteria(18, "average_hours_worked", 0, false, false, true, null);
-                v.columns[19] = new Criteria(19, "ft_indicator", 1, false, false, false, bit);
-                v.columns[20] = new Criteria(20, "citizenship", 50, false, false, false, null);
-                v.columns[21] = new Criteria(21, "visa_classification", 50, false, false, false, null);
-                v.columns[22] = new Criteria(22, "visa_number", 50, false, false, false, null);
-                v.columns[23] = new Criteria(23, "visa_issued", 0, false, true, false, null);
-                v.columns[24] = new Criteria(24, "visa_expires", 0, false, true, false, null);
-                v.columns[25] = new Criteria(25, "office_email", 100, false, false, false, null);
-                v.columns[26] = new Criteria(26, "office_phone", 50, false, false, false, null);
-                v.columns[27] = new Criteria(27, "home_address", 200, false, false, false, null);
-                v.columns[28] = new Criteria(28, "home_address2", 200, false, false, false, null);
-                v.columns[29] = new Criteria(29, "home_city", 100, false, false, false, null);
-                v.columns[30] = new Criteria(30, "home_country", 100, false, false, false, null);
-                v.columns[31] = new Criteria(31, "home_state", 100, false, false, false, null);
-                v.columns[32] = new Criteria(32, "home_zipcode", 50, false, false, false, null);
-                v.columns[33] = new Criteria(33, "home_email", 100, false, false, false, null);
-                v.columns[34] = new Criteria(34, "home_phone", 20, false, false, false, null);
-                v.columns[35] = new Criteria(35, "supervisor_local_id", 50, false, false, false, null);
-                v.columns[36] = new Criteria(36, "delete", 1, false, false, false, bit);
+                v.COLUMNS[1] = new Criteria(1, "staff_id", 50, true, false, false, null);
+                v.COLUMNS[2] = new Criteria(2, "last_name", 50, true, false, false, null);
+                v.COLUMNS[3] = new Criteria(3, "first_name", 50, true, false, false, null);
+                v.COLUMNS[4] = new Criteria(4, "middle_name", 50, false, false, false, null);
+                v.COLUMNS[5] = new Criteria(5, "suffix", 3, false, false, false, suffix);
+                v.COLUMNS[6] = new Criteria(6, "localid", 50, false, false, false, null);
+                v.COLUMNS[7] = new Criteria(7, "npi", 50, false, false, false, null);
+                v.COLUMNS[8] = new Criteria(8, "upin", 50, false, false, false, null);
+                v.COLUMNS[9] = new Criteria(9, "ssn", 50, false, false, false, null);
+                v.COLUMNS[10] = new Criteria(10, "gender", 1, false, false, false, gender);
+                v.COLUMNS[11] = new Criteria(11, "date_of_birth", 0, false, true, false, null);
+                v.COLUMNS[12] = new Criteria(12, "marital_status", 20, false, false, false, marital_status);
+                v.COLUMNS[13] = new Criteria(13, "maiden_name", 50, false, false, false, null);
+                v.COLUMNS[14] = new Criteria(14, "organization", 200, true, false, false, null);
+                v.COLUMNS[15] = new Criteria(15, "department", 100, false, false, false, null);
+                v.COLUMNS[16] = new Criteria(16, "title", 100, false, false, false, null);
+                v.COLUMNS[17] = new Criteria(17, "average_days_worked", 0, false, false, true, null);
+                v.COLUMNS[18] = new Criteria(18, "average_hours_worked", 0, false, false, true, null);
+                v.COLUMNS[19] = new Criteria(19, "ft_indicator", 1, false, false, false, bit);
+                v.COLUMNS[20] = new Criteria(20, "citizenship", 50, false, false, false, null);
+                v.COLUMNS[21] = new Criteria(21, "visa_classification", 50, false, false, false, null);
+                v.COLUMNS[22] = new Criteria(22, "visa_number", 50, false, false, false, null);
+                v.COLUMNS[23] = new Criteria(23, "visa_issued", 0, false, true, false, null);
+                v.COLUMNS[24] = new Criteria(24, "visa_expires", 0, false, true, false, null);
+                v.COLUMNS[25] = new Criteria(25, "office_email", 100, false, false, false, null);
+                v.COLUMNS[26] = new Criteria(26, "office_phone", 50, false, false, false, null);
+                v.COLUMNS[27] = new Criteria(27, "home_address", 200, false, false, false, null);
+                v.COLUMNS[28] = new Criteria(28, "home_address2", 200, false, false, false, null);
+                v.COLUMNS[29] = new Criteria(29, "home_city", 100, false, false, false, null);
+                v.COLUMNS[30] = new Criteria(30, "home_country", 100, false, false, false, null);
+                v.COLUMNS[31] = new Criteria(31, "home_state", 100, false, false, false, null);
+                v.COLUMNS[32] = new Criteria(32, "home_zipcode", 50, false, false, false, null);
+                v.COLUMNS[33] = new Criteria(33, "home_email", 100, false, false, false, null);
+                v.COLUMNS[34] = new Criteria(34, "home_phone", 20, false, false, false, null);
+                v.COLUMNS[35] = new Criteria(35, "supervisor_local_id", 50, false, false, false, null);
+                v.COLUMNS[36] = new Criteria(36, "delete", 1, false, false, false, bit);
             }
         }
 
