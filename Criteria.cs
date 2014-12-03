@@ -46,7 +46,12 @@ namespace Load_Validator
                 if (!this.accepted.Contains(input)) { flagLabels.enums.fail(); return false; }
             }
 
-            // decimals are not required, so only validate if length > 0
+            /*
+             * 
+             * This block is hard coded for Dec(8,4) 
+             * Overload Criteria constructor if different decimal types are needed.
+             * 
+             */
             if (isDec & input.Length > 0)
             {
                 bool succeed;
@@ -60,17 +65,16 @@ namespace Load_Validator
                 {
                     if (n[0].Length > 8 | n[1].Length > 4 | !succeed)
                     {
-                        Debug.WriteLine(">" + input);
-
+                        //Debug.WriteLine(">" + input);
                         flagLabels.decimals.fail();
                         return false;
                     }
                 }
-                else if (n.Length == 1) //failing
+                else if (n.Length == 1) // input has no digits on right side of decimal point.
                 {
                     if (n[0].Length > 8 | !succeed)
                     {
-                        Debug.WriteLine("}" + input);
+                        //Debug.WriteLine("}" + input);
                         flagLabels.decimals.fail();
                         return false;
                     }
@@ -91,13 +95,12 @@ namespace Load_Validator
                 }
             }
 
-            if (len != 0 & input.Length > this.len) 
+            if (this.len != 0 & input.Length > this.len) 
             {
                 Debug.WriteLine(column);
                 flagLabels.lengths.fail();
                 return false;
             }
-
             return true;
         }
 

@@ -38,7 +38,7 @@ namespace Load_Validator
         public static StreamWriter OUTPUT_WRITER;
         public static int row_counter = 0;
         public static Button validate_button;
-        public static Button open_errors;
+        public static Button open_errors_button;
         public static ArrayList labels_list;
         public static string[] versions = new string[] { "0.7", "0.6" }; // our set of versions. 
         public static ComboBox version_;
@@ -88,6 +88,8 @@ namespace Load_Validator
             }
         }
 
+        // After user has already chosen an input file,
+        // if they want to pick another use this to reset everything
         public void resetFlags()
         {
             if (validation_completed)
@@ -183,7 +185,7 @@ namespace Load_Validator
             {
                 flagLabels.header.fail();
                 writeError(line, "Header", "Header does not match the required format.");
-                open_errors.Enabled = true;
+                open_errors_button.Enabled = true;
             }
 
             // Check for CRLF before moving to next line.
@@ -197,7 +199,7 @@ namespace Load_Validator
             {
                 flagLabels.newlines.fail();
                 writeError(line, "End of Line", "Line did not terminate with CRLF.");
-                open_errors.Enabled = true;
+                open_errors_button.Enabled = true;
             }
 
             // Now start loop for normal rows
@@ -217,10 +219,11 @@ namespace Load_Validator
                 {
                     flagLabels.staff_ids.fail();
                     writeError(line, "Unique Staff Id", "The staff id is not unique.");
-                    open_errors.Enabled = true;
+                    open_errors_button.Enabled = true;
                 }
                 STAFF_IDS.Add(fields[0]);
 
+                // Go through rest of columns and call respective validate function
                 for (int i = 0; i < cols; i++)
                 {
                     try
@@ -229,15 +232,21 @@ namespace Load_Validator
                         if (!this.COLUMNS[i + 1].validate(fields[i]))
                         {
                             writeError(line, this.COLUMNS[i + 1].column_name, fields[i], this.COLUMNS[i + 1].spec());
-                            open_errors.Enabled = true;
+                            open_errors_button.Enabled = true;
                         }
                     }
                     catch (IndexOutOfRangeException)
                     {
+                        Debug.WriteLine("Columns Failed.");
                         flagLabels.field_count.fail();
+
+                        validation_completed = true;
+                        this.setFlags();
+                        return;
                     }
                 }
 
+                // Check CRLF before moving on to next line. Must use Read() to see these
                 for (int i = 1; i <= line.Length; i++)
                 {
                     endline_reader.Read();
@@ -278,16 +287,20 @@ namespace Load_Validator
 
             if (errs)
             {
-                version_.Visible = false;
-                version_label.Visible = false;
+                hideVersionStuffs();
                 error_message.Text = "See \'" + error_out_file + "\' for error information.";
             }
             else
             {
+                hideVersionStuffs();
                 error_message.Text = "Data file has no errors!";
-                version_.Visible = false;
-                version_label.Visible = false;
             }
+        }
+
+        private void hideVersionStuffs()
+        {
+            version_.Visible = false;
+            version_label.Visible = false; 
         }
 
         [STAThread]
@@ -394,12 +407,12 @@ namespace Load_Validator
             validate_button.Click += new EventHandler(v.validate);
             validate_button.Enabled = false;
 
-            open_errors = new Button();
-            open_errors.Text = "Open Error File";
-            open_errors.Size = new Size(80, 50);
-            open_errors.Location = new Point(190, 185);
-            open_errors.Click += new EventHandler(v.openErrorFile);
-            open_errors.Enabled = false;
+            open_errors_button = new Button();
+            open_errors_button.Text = "Open Error File";
+            open_errors_button.Size = new Size(80, 50);
+            open_errors_button.Location = new Point(190, 185);
+            open_errors_button.Click += new EventHandler(v.openErrorFile);
+            open_errors_button.Enabled = false;
 
             Button quit_button = new Button();
             quit_button.Text = "Quit";
@@ -415,7 +428,7 @@ namespace Load_Validator
             v.form.Controls.Add(validate_button);
             v.form.Controls.Add(quit_button);
             v.form.Controls.Add(logo);
-            v.form.Controls.Add(open_errors);
+            v.form.Controls.Add(open_errors_button);
         }
 
         static void setCriteria(Validator v)
